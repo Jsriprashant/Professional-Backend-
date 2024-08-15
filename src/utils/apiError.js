@@ -1,12 +1,13 @@
 class apiError extends Error {
+    // overriding the base class constructor
     constructor(
         statusCode,
         message = "Something went wrong",
         errors = [],
         statck = ""
     ) {
-        // override
-        super(message)
+
+        super(message) // call to super class constructor
         this.statusCode = statusCode
         this.data = null
         this.message = message
@@ -24,4 +25,4 @@ class apiError extends Error {
     }
 }
 
-export {apiError}
+export { apiError }

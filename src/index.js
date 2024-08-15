@@ -1,28 +1,28 @@
 // require('dotenv').config({path: './env'})
-import connectDb from "./db/index.js"; 
+import connectDb from "./db/index.js";
 import express from 'express'
 import dotenv from 'dotenv'
-dotenv.config({path:'./env'})
+dotenv.config({ path: './env' })
 
 const app = express()
 
 connectDb()
-.then(()=>{
+    .then(() => {
 
-    app.on('error',(error)=>{
-        console.log("Error while starting the server : ",error)
-        process.exit(1)
-        
+        app.on('error', (error) => {
+            console.log("Error while starting the server : ", error)
+            process.exit(1)
+
+        })
+
+        app.listen(process.env.PORT || 8000, () => {
+            console.log(`App listning on port ${process.env.PORT || 8000}`)
+
+        })
     })
-
-    app.listen(process.env.PORT||8000,()=>{
-        console.log(`App listning on port ${process.env.PORT||8000}`)
-
+    .catch((error) => {
+        console.error("MONGO DB CONNECTION ERROR: ", error);
     })
-})
-.catch((error)=>{
-    console.error("MONGO DB CONNECTION ERROR: ",error); 
-})
 
 
 
@@ -45,7 +45,7 @@ connectDb()
 // const app = express()
 
 //     // this is a iife function--> automatically invoked as soon as it is defined
-//     // its good to put semicolon at the start of iife 
+//     // its good to put semicolon at the start of iife
 //     ; (async () => {
 //         try {
 //             await mongoose.connect(`${process.env.MONGODB_URI}/${DB_NAME}`)
