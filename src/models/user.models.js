@@ -36,13 +36,12 @@ const userSchema = new mongoose.Schema({
     },
     watchHistory: [
         {
-            // explain this 
             type: mongoose.Schema.Types.ObjectId,
             ref: "videos"
         }
     ],
     password: {
-        // why password is string ?
+
         type: String,
         required: true,
 

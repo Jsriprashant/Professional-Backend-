@@ -21,7 +21,6 @@ const videoSchema = new mongoose.Schema({
         required: true,
     },
     duration: {
-        // we will get this from the cloudinary
         type: Number,
         required: true,
     },
@@ -36,7 +35,6 @@ const videoSchema = new mongoose.Schema({
     owner: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User"
-
     }
 
 
@@ -44,6 +42,6 @@ const videoSchema = new mongoose.Schema({
 
 }, { timestamps: true })
 
-videoSchema.plugin(mongooseAggregatePaginate) //chat gpt---> why is this and what is this ---> something related to middle ware
+videoSchema.plugin(mongooseAggregatePaginate)
 
 export const Videos = mongoose.model("Videos", videoSchema)
