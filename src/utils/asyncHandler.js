@@ -2,12 +2,12 @@
 // promise method
 
 const asyncHandler = (requestHandler) => {
-    async (res, req, next) => {
+    return (res, req, next) => {
         Promise.resolve(requestHandler(res, req, next)).catch((error) => next(error))
     }
 
 }
-export default asyncHandler
+export { asyncHandler }
 
 
 // // try catch method

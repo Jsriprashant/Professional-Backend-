@@ -13,6 +13,13 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }))
 app.use(express.static("public"))
 app.use(cookieParser())
 
+// import routes
+import userRouter from './routes/user.route.js'
 
 
-return { app }
+// Routes declaration
+// app.use("/users", userRouter)
+// now ab koi bhi type karega /users then control chala jayega user.route.js wale file pe
+app.use("/api/v1/users", userRouter)
+
+export { app }

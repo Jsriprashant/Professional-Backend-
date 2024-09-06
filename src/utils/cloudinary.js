@@ -19,23 +19,18 @@ const uploadOnCloudinary = async (localFilePath) => {
         // in response cloudinary gives the link to the photos or videous
 
         console.log("uploaded files sucessfully", response.url)
+        fs.unlink(localFilePath) // Unlink (delete) the file only after successful upload
+
+
         return response
 
 
     } catch (error) {
-        fs.unlinkSync(localFilePath)
+        fs.unlinkSync(localFilePath) // remove the locally saved  file as the upload operation got failed
     }
 
 }
 
 
-await cloudinary.uploader
-    .upload(
-        'https://res.cloudinary.com/demo/image/upload/getting-started/shoes.jpg', {
-        public_id: 'shoes',
-    }
-    )
-    .catch((error) => {
-        console.log(error);
-    });
+export { uploadOnCloudinary }
 
