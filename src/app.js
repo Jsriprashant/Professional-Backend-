@@ -18,8 +18,13 @@ import userRouter from './routes/user.route.js'
 
 
 // Routes declaration
-// app.use("/users", userRouter)
-// now ab koi bhi type karega /users then control chala jayega user.route.js wale file pe
+
 app.use("/api/v1/users", userRouter)
+
+// http://localhost:8000/api/v1/users/register
+
+// http://localhost:8000/api/v1/users/
+// http://localhost:8000/api/v1/users/register
+
 
 export { app }
