@@ -19,9 +19,8 @@ const uploadOnCloudinary = async (localFilePath) => {
         // in response cloudinary gives the link to the photos or videous
 
         console.log("uploaded files sucessfully", response.url)
-        fs.unlink(localFilePath) // Unlink (delete) the file only after successful upload
-
-
+        // console.log("this is the total response", response)
+        fs.unlinkSync(localFilePath) // Unlink (delete) the file only after successful upload
         return response
 
 

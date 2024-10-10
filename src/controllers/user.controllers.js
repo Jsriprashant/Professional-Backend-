@@ -4,16 +4,35 @@ import { User } from "../models/user.models.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js";
 
+const generateAccessTokenAndRefreshToken = async (userId) => {
+    try {
+        const user = await User.findById(userId)
 
+        const acessToken = await user.generateAccessToken()
+        const refreshToken = await user.generateRefreshToken()
+
+        user.refreshToken = refreshToken
+        await user.save({ validateBeforeSave: false })
+
+        return { acessToken, refreshToken }
+
+    } catch (error) {
+        throw new apiError(500, "Something went wrong while generating acess token and refresh token ");
+
+    }
+}
+
+
+// REGISTER THE USER
 const registerUser = asyncHandler(
     async (req, res) => {
-        //    Get User details from the frontend
+        // Get User details from the frontend
         // check if any field is empty
         // check if user already exists
-        // check for images, avatar
+        // check for images i.e.avatar
         // if available then upload it in cloudinary
-        //create a user object and make a entry in DB
-        //remove password and refresh token from the response
+        // create a user object and make a entry in DB
+        // remove password and refresh token from the response
         // check for user creation
         // return res if user created sucessfully
 
@@ -30,7 +49,8 @@ const registerUser = asyncHandler(
 
         // either we can write the if statemesnts for every field 
         // or we can use the below method
-        if ([email, username, fullname, passoword, refreshToken].some((field) =>
+
+        if ([email, username, fullname, password, refreshToken].some((field) =>
             field?.trim() === ""
         )) {
             throw new apiError(400, "All fields are required")
@@ -44,7 +64,7 @@ const registerUser = asyncHandler(
         // we want to check if the username or email is present, if yes then return error
         // ?we can se operators for it 
 
-        const existedUser = User.findOne({
+        const existedUser = await User.findOne({
             $or: [{ username }, { email }]
         })
 
@@ -52,11 +72,19 @@ const registerUser = asyncHandler(
             throw new apiError(409, "User already exists")
         }
 
-        const avatarLocalPath = res.files?.avatar[0]?.path
-        const coverImageLocalPath = res.files?.coverImage[0]?.path
+        const avatarLocalPath = req.files?.avatar[0]?.path
+        // const coverImageLocalPath = req.files?.coverImage[0]?.path
+        let coverImageLocalPath;
+
 
         if (!avatarLocalPath) {
             throw new apiError(400, "Avatar is required")
+        }
+
+        // check if cover image is uploaded ot not
+
+        if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+            coverImageLocalPath = req.files.coverImage[0].path;
         }
 
         // Upload on cloudinary
@@ -64,6 +92,7 @@ const registerUser = asyncHandler(
         const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
         if (!avatar) {
+            console.log("in the controller file", avatar)
             throw new apiError(400, "Avatar is required");
 
         }
@@ -71,14 +100,14 @@ const registerUser = asyncHandler(
         const user = await User.create({
             fullname,
             email,
-            username: username.to_lowercase(),
+            username: username.toLowerCase(),
             avatar: avatar.url,
             coverImage: coverImage?.url || "",
             password,
             refreshToken
         })
 
-        // now to know if the user has been created or not in the BD we are going to make another call to DB
+        // now to know if the user has been created or not in the DB we are going to make another call to DB
 
         const createdUser = await User.findById(user._id).select("-password -refreshToken")
         // now we do not want to show the password and refresh token to the user, so either we remove it from the user.create 
@@ -100,4 +129,99 @@ const registerUser = asyncHandler(
 
     })
 
-export { registerUser }
+// USER LOGIN
+const loginUser = asyncHandler(
+    async (req, res) => {
+        // steps
+        // Take the Data from req.body
+        // find the user (through username or email)
+        // match the passwords(if user is found)
+        // generate the acess and refresh tokens (if the passowrds match)
+        // send the acess tokens through cookies(secure cookies)
+        // send the acknowledgement that the user is registered
+
+        const { username, email, password } = req.body
+
+
+        const user = await User.findOne(
+            {
+                $or: [{ username }, { email }]
+            }
+        )
+
+        if (!user) {
+            throw new apiError(404, "User with the username or email not found");
+
+        }
+
+        const isMatch = await user.isPasswordCorrect(password)
+
+        if (!isMatch) {
+            throw new apiError(401, "Password entered is incorrect");
+
+        }
+
+        // separate method created above
+        // const acessToken = await user.generateAccessToken()
+        // const refreshToken = await user.generateRefreshToken()
+
+        const { acessToken, refresToken } = generateAccessTokenAndRefreshToken(user._id)
+
+        // now the user that we queried by findone is nt updated as after that we have generated the refresh tokens and updated the user and also it has all fields like password, tokens, which should not be sent to the front end
+        //so we make a mongoDb call again
+
+        const loggedInUser = User.findById(user._id).select("-password -refreshToken")
+
+        // Creating options for cookies
+
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+
+        // now in the response we are setting cookies
+
+        return res.status(200).cookies("acessToken", acessToken, options).cookies("refreshToken", refresToken, options).json(
+            new apiResponse(200, {
+                user: loggedInUser, refreshToken, acessToken
+                // now why we are sending the acesstoken and refrsh token in json? as we have already did it in cookies
+                // its because we aer handleing the case when user wants to save the acesstoken and the refresh token in local storage (maybe the user is developing a mobile application so there is no cookies  )
+            }, "User logged in Sucessfully")
+        )
+        // we can keep adding teh 
+
+
+
+    }
+)
+
+// USER LOGOUT
+
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id,
+        // as from the middle ware (verifyJWT we have embeded a user object in the request)
+        {
+            $set: {
+                refreshToken: undefined
+                // we are using the set operator to the set the refresh token as undefined
+            }
+        },
+        {
+            new: true
+            // by this, when we send the response then we will get the new and updated value not the old one
+        }
+
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res.status(200).clearCookie("refreshToken", options).clearCookie("refreshToken", options).json(new apiResponse(200, {}, "User logged out sucessfully"))
+
+})
+
+
+export { registerUser, loginUser, logoutUser }
