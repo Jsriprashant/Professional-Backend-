@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { loginUser, registerUser, logoutUser } from "../controllers/user.controllers.js";
+import { loginUser, registerUser, logoutUser, newAcessToken } from "../controllers/user.controllers.js";
 
 import { upload } from "../middlewares/multer.middleware.js"
+import { verifyJWT } from "../middlewares/auth.middleware.js"
 
 const router = Router()
 
@@ -23,5 +24,5 @@ router.route("/login").post(loginUser)
 // we run this verify jwt middle ware that takes incoming request and verifies the user through cookies and in the request add a object with the decoded user detail and pass it to the next 
 router.route("/logout").post(verifyJWT, logoutUser)
 
-
+router.route("/newAcessToken").post(newAcessToken)
 export default router

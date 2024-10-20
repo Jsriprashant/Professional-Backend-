@@ -3,13 +3,16 @@ import { apiError } from "../utils/apiError.js"
 import { User } from "../models/user.models.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js";
-
+import jwt from "jsonwebtoken"
 const generateAccessTokenAndRefreshToken = async (userId) => {
     try {
         const user = await User.findById(userId)
 
         const acessToken = await user.generateAccessToken()
         const refreshToken = await user.generateRefreshToken()
+
+        // console.log("acess token", acessToken)
+        // console.log("refreshToken ", refreshToken)
 
         user.refreshToken = refreshToken
         await user.save({ validateBeforeSave: false })
@@ -138,7 +141,7 @@ const loginUser = asyncHandler(
         // match the passwords(if user is found)
         // generate the acess and refresh tokens (if the passowrds match)
         // send the acess tokens through cookies(secure cookies)
-        // send the acknowledgement that the user is registered
+        // send the acknowledgement that the user is logged in
 
         const { username, email, password } = req.body
 
@@ -148,7 +151,7 @@ const loginUser = asyncHandler(
                 $or: [{ username }, { email }]
             }
         )
-
+        // console.log("reached here", user)
         if (!user) {
             throw new apiError(404, "User with the username or email not found");
 
@@ -165,12 +168,13 @@ const loginUser = asyncHandler(
         // const acessToken = await user.generateAccessToken()
         // const refreshToken = await user.generateRefreshToken()
 
-        const { acessToken, refresToken } = generateAccessTokenAndRefreshToken(user._id)
+        const { acessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user._id)
+
 
         // now the user that we queried by findone is nt updated as after that we have generated the refresh tokens and updated the user and also it has all fields like password, tokens, which should not be sent to the front end
         //so we make a mongoDb call again
 
-        const loggedInUser = User.findById(user._id).select("-password -refreshToken")
+        const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
         // Creating options for cookies
 
@@ -181,14 +185,15 @@ const loginUser = asyncHandler(
 
         // now in the response we are setting cookies
 
-        return res.status(200).cookies("acessToken", acessToken, options).cookies("refreshToken", refresToken, options).json(
+        return res.status(200).cookie("acessToken", acessToken, options).cookie("refreshToken", refreshToken, options).json(
             new apiResponse(200, {
-                user: loggedInUser, refreshToken, acessToken
+                user: loggedInUser,
+                refreshToken: refreshToken,
+                acessToken: acessToken
                 // now why we are sending the acesstoken and refrsh token in json? as we have already did it in cookies
                 // its because we aer handleing the case when user wants to save the acesstoken and the refresh token in local storage (maybe the user is developing a mobile application so there is no cookies  )
             }, "User logged in Sucessfully")
         )
-        // we can keep adding teh 
 
 
 
@@ -198,14 +203,16 @@ const loginUser = asyncHandler(
 // USER LOGOUT
 
 const logoutUser = asyncHandler(async (req, res) => {
+
+    console.log("username", req.user.username)
     await User.findByIdAndUpdate(
         req.user._id,
         // as from the middle ware (verifyJWT we have embeded a user object in the request)
         {
-            $set: {
-                refreshToken: undefined
-                // we are using the set operator to the set the refresh token as undefined
-            }
+
+            $set: { refreshToken: null }
+            // we are using the set operator to the set the refresh token as undefined
+
         },
         {
             new: true
@@ -219,9 +226,65 @@ const logoutUser = asyncHandler(async (req, res) => {
         secure: true
     }
 
-    return res.status(200).clearCookie("refreshToken", options).clearCookie("refreshToken", options).json(new apiResponse(200, {}, "User logged out sucessfully"))
+    return res.status(200).clearCookie("refreshToken", options).clearCookie("acessToken", options).json(new apiResponse(200, {}, "User logged out sucessfully"))
 
 })
 
+const newAcessToken = asyncHandler(async (req, res) => {
+    const incomingRefreshToken = req.cookie?.refreshToken || req.body.refreshToken;
 
-export { registerUser, loginUser, logoutUser }
+    if (!incomingRefreshToken) {
+        throw new apiError(401, "Not authorised to login")
+    }
+
+    try {
+        const decoded_user = await jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET)
+
+        if (!decoded_user) {
+            throw new apiError(400, "invalid refresh token")
+        }
+
+        const user = await User.findById(decoded_user?._id);
+
+        if (!user) {
+            throw new apiError(401, "invalid refresh token");
+        }
+
+        // check the refreshtoken
+
+        if (incomingRefreshToken !== user?.refreshToken) {
+            throw new apiError(401, "Refresh token expired or used");
+        }
+
+        // generate the new refresh tokens
+
+        const { acessToken, newRefreshToken } = generateAccessTokenAndRefreshToken(user._id);
+
+        // send new cookies with updated refresh token and acesstoken
+
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+
+        res.status(200).cookie("acessToken", acessToken, options).cookie("refreshToken", newRefreshToken, options).json(
+            new apiResponse(
+                200,
+                {
+                    acessToken: newAcessToken,
+                    refreshToken: newRefreshToken
+                },
+                "New acess token generated sucessfully"
+            )
+
+        )
+    } catch (error) {
+        throw new apiError(401, error?.message || "Invalid acess token")
+
+    }
+
+
+
+})
+
+export { registerUser, loginUser, logoutUser, newAcessToken }

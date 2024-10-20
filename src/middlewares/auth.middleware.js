@@ -3,7 +3,7 @@ import { apiError } from "../utils/apiError.js"
 import { User } from "../models/user.models.js"
 import jwt from "jsonwebtoken"
 
-export const verifyJWT = asyncHandler(async (req, res) => {
+export const verifyJWT = asyncHandler(async (req, res,next) => {
     try {
         const token = req.cookies?.acessToken || req.header("authorization")?.replace("Bearer ", "")
         // now if the acess token is not found in cookies(maybe a mobile application) then we look at the header for the keyword "Authorization"
@@ -26,6 +26,7 @@ export const verifyJWT = asyncHandler(async (req, res) => {
             throw new apiError(401, "Invalid Acess Token");
 
         }
+        console.log("middleware",user)
 
         // now we have verified the user, and we need to add this user to the request object
         req.user = user // add a new user object and asigning it with user data
