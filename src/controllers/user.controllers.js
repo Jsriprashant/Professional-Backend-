@@ -231,7 +231,9 @@ const logoutUser = asyncHandler(async (req, res) => {
 })
 
 const newAcessToken = asyncHandler(async (req, res) => {
-    const incomingRefreshToken = req.cookie?.refreshToken || req.body.refreshToken;
+    const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+
+
 
     if (!incomingRefreshToken) {
         throw new apiError(401, "Not authorised to login")
@@ -258,8 +260,12 @@ const newAcessToken = asyncHandler(async (req, res) => {
 
         // generate the new refresh tokens
 
-        const { acessToken, newRefreshToken } = generateAccessTokenAndRefreshToken(user._id);
+        const { acessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user._id);
 
+        const newRefreshToken = refreshToken
+
+        // console.log("acessToken ", acessToken);
+        // console.log("refreshToken", newRefreshToken)
         // send new cookies with updated refresh token and acesstoken
 
         const options = {
@@ -271,7 +277,7 @@ const newAcessToken = asyncHandler(async (req, res) => {
             new apiResponse(
                 200,
                 {
-                    acessToken: newAcessToken,
+                    acessToken: acessToken,
                     refreshToken: newRefreshToken
                 },
                 "New acess token generated sucessfully"
