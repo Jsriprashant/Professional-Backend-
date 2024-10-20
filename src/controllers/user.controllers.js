@@ -8,19 +8,19 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
     try {
         const user = await User.findById(userId)
 
-        const acessToken = await user.generateAccessToken()
+        const accessToken = await user.generateAccessToken()
         const refreshToken = await user.generateRefreshToken()
 
-        // console.log("acess token", acessToken)
+        // console.log("access token", accessToken)
         // console.log("refreshToken ", refreshToken)
 
         user.refreshToken = refreshToken
         await user.save({ validateBeforeSave: false })
 
-        return { acessToken, refreshToken }
+        return { accessToken, refreshToken }
 
     } catch (error) {
-        throw new apiError(500, "Something went wrong while generating acess token and refresh token ");
+        throw new apiError(500, "Something went wrong while generating access token and refresh token ");
 
     }
 }
@@ -128,8 +128,6 @@ const registerUser = asyncHandler(
         )
 
 
-
-
     })
 
 // USER LOGIN
@@ -139,8 +137,8 @@ const loginUser = asyncHandler(
         // Take the Data from req.body
         // find the user (through username or email)
         // match the passwords(if user is found)
-        // generate the acess and refresh tokens (if the passowrds match)
-        // send the acess tokens through cookies(secure cookies)
+        // generate the access and refresh tokens (if the passowrds match)
+        // send the access tokens through cookies(secure cookies)
         // send the acknowledgement that the user is logged in
 
         const { username, email, password } = req.body
@@ -165,10 +163,10 @@ const loginUser = asyncHandler(
         }
 
         // separate method created above
-        // const acessToken = await user.generateAccessToken()
+        // const accessToken = await user.generateAccessToken()
         // const refreshToken = await user.generateRefreshToken()
 
-        const { acessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user._id)
+        const { accessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user._id)
 
 
         // now the user that we queried by findone is nt updated as after that we have generated the refresh tokens and updated the user and also it has all fields like password, tokens, which should not be sent to the front end
@@ -185,13 +183,13 @@ const loginUser = asyncHandler(
 
         // now in the response we are setting cookies
 
-        return res.status(200).cookie("acessToken", acessToken, options).cookie("refreshToken", refreshToken, options).json(
+        return res.status(200).cookie("accessToken", accessToken, options).cookie("refreshToken", refreshToken, options).json(
             new apiResponse(200, {
                 user: loggedInUser,
                 refreshToken: refreshToken,
-                acessToken: acessToken
-                // now why we are sending the acesstoken and refrsh token in json? as we have already did it in cookies
-                // its because we aer handleing the case when user wants to save the acesstoken and the refresh token in local storage (maybe the user is developing a mobile application so there is no cookies  )
+                accessToken: accessToken
+                // now why we are sending the accessToken and refrsh token in json? as we have already did it in cookies
+                // its because we aer handleing the case when user wants to save the accessToken and the refresh token in local storage (maybe the user is developing a mobile application so there is no cookies  )
             }, "User logged in Sucessfully")
         )
 
@@ -201,7 +199,6 @@ const loginUser = asyncHandler(
 )
 
 // USER LOGOUT
-
 const logoutUser = asyncHandler(async (req, res) => {
 
     console.log("username", req.user.username)
@@ -226,11 +223,11 @@ const logoutUser = asyncHandler(async (req, res) => {
         secure: true
     }
 
-    return res.status(200).clearCookie("refreshToken", options).clearCookie("acessToken", options).json(new apiResponse(200, {}, "User logged out sucessfully"))
+    return res.status(200).clearCookie("refreshToken", options).clearCookie("accessToken", options).json(new apiResponse(200, {}, "User logged out sucessfully"))
 
 })
 
-const newAcessToken = asyncHandler(async (req, res) => {
+const newAccessToken = asyncHandler(async (req, res) => {
     const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
 
 
@@ -260,32 +257,32 @@ const newAcessToken = asyncHandler(async (req, res) => {
 
         // generate the new refresh tokens
 
-        const { acessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user._id);
+        const { accessToken, refreshToken } = await generateAccessTokenAndRefreshToken(user._id);
 
         const newRefreshToken = refreshToken
 
-        // console.log("acessToken ", acessToken);
+        // console.log("accessToken ", accessToken);
         // console.log("refreshToken", newRefreshToken)
-        // send new cookies with updated refresh token and acesstoken
+        // send new cookies with updated refresh token and accessToken
 
         const options = {
             httpOnly: true,
             secure: true
         }
 
-        res.status(200).cookie("acessToken", acessToken, options).cookie("refreshToken", newRefreshToken, options).json(
+        res.status(200).cookie("accessToken", accessToken, options).cookie("refreshToken", newRefreshToken, options).json(
             new apiResponse(
                 200,
                 {
-                    acessToken: acessToken,
+                    accessToken: accessToken,
                     refreshToken: newRefreshToken
                 },
-                "New acess token generated sucessfully"
+                "New access token generated sucessfully"
             )
 
         )
     } catch (error) {
-        throw new apiError(401, error?.message || "Invalid acess token")
+        throw new apiError(401, error?.message || "Invalid access token")
 
     }
 
@@ -293,4 +290,4 @@ const newAcessToken = asyncHandler(async (req, res) => {
 
 })
 
-export { registerUser, loginUser, logoutUser, newAcessToken }
+export { registerUser, loginUser, logoutUser, newAccessToken }
