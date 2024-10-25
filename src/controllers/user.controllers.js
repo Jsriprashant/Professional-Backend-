@@ -227,6 +227,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 })
 
+// GENERATE NEW ACCESS TOKENS
 const newAccessToken = asyncHandler(async (req, res) => {
     const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
 
@@ -290,4 +291,168 @@ const newAccessToken = asyncHandler(async (req, res) => {
 
 })
 
-export { registerUser, loginUser, logoutUser, newAccessToken }
+// CHANGE CURRENT PASSWORD
+
+const changeOldPassword = asyncHandler(async (req, res) => {
+
+    const { oldPassword, newPassword } = req.body;
+
+    if (oldPassword === newPassword) {
+        throw new apiError(400, "old password and new password are same, change it !");
+    }
+
+    const userId = req.user?._id;
+
+    if (!userId) {
+        throw new apiError(400, "Login to change your password");
+    }
+
+    const user = await User.findById(userId);
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+    if (!isPasswordCorrect) {
+        throw new apiError(400, "Incorrect Password")
+    }
+
+    user.password = newPassword;
+    await user.save({ validateBeforeSave: false })
+
+    return res.status(200).json(new apiResponse(
+        200,
+        {},
+        "Password change sucessfully"
+    ))
+
+
+})
+
+// FETCH CURRENT USER
+
+const fetchCurrentUser = asyncHandler(async (req, res) => {
+
+    const userId = req.user._id;
+
+    if (!userId) {
+        throw new apiError(400, "Login first");
+
+    }
+
+    const currentUser = await User.findById(userId);
+
+    return res.status(200).json(200, currentUser, "Current user fetched sucessfully")
+
+
+})
+
+// UPDATE ACCOUNT
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+
+    const { email, fullname } = req.body;
+
+    if (!email || !fullname) {
+        throw new apiError(400, "All fields are required")
+    }
+
+    // using middleware verifyJWT
+    const user = await User.findById(req.user._id);
+
+    if (email == user.email) {
+        throw new apiError(401, "Email is Same")
+    }
+
+    if (fullname == user.fullname) {
+        throw new apiError(401, "Fullname is same")
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+        user._id,
+        {
+            $set: { username: username, email: email }
+        },
+        {
+            new: true
+        }
+    ).select("-password -refreshToken")
+
+    return res.status(200).json(
+        new apiResponse(200, { updatedUser }, "User updated sucessfully")
+    )
+
+
+})
+
+const updateAvatar = asyncHandler(async (req, res) => {
+    const user = req.user?._id;
+    if (!user) {
+        throw new apiError(401, "User authentication failed or user not registered")
+
+    }
+    // const avatar = await uploadOnCloudinary(avatarLocalPath);
+    // const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    const avatarLocalPath = req.file?.path
+
+    if (!avatarLocalPath) {
+        throw new apiError(400, "Avatar file is missing");
+    }
+
+    const newAvatarUrl = await uploadOnCloudinary(avatarLocalPath);
+
+    if (!newAvatarUrl.url) {
+        throw new apiError(400, "Error while uploading on cloudinary");
+    }
+
+    await cloudinary.v2.uploader.destroy(user.avatar, { resource_type: 'image' })
+
+    // findoneandupdate, findByidandupdate
+    const updatedAvatarUser = await user.findOneAndUpdate(
+        user._id,
+        {
+            $set: { avatar: newAvatarUrl.url }
+
+        },
+        {
+            new: true
+        }).select("-password -refreshToken")
+
+    return res.status(200).json(new apiResponse(200, updatedAvatarUser, "Avatar updated sucessfully"))
+})
+
+// exra thing that i did was to delete the old file from cloudinary for avatar and coverimage
+
+const updateCoverImage = asyncHandler(async (req, res) => {
+    const user = req.user?._id;
+    if (!user) {
+        throw new apiError(401, "User authentication failed or user not registered")
+
+    }
+    // const avatar = await uploadOnCloudinary(avatarLocalPath);
+    // const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    const coverImageLocalPath = req.file?.path
+
+    if (!coverImageLocalPath) {
+        throw new apiError(400, "Cover image file is missing");
+    }
+
+    const newCoverUrl = await uploadOnCloudinary(coverImageLocalPath);
+
+    if (!newCoverUrl.url) {
+        throw new apiError(400, "Error while uploading on cloudinary");
+    }
+
+    await cloudinary.v2.uploader.destroy(user.coverImage, { resource_type: 'image' })
+
+    // findoneandupdate, findByidandupdate
+    const updatedCoverUser = await user.findOneAndUpdate(
+        user._id,
+        {
+            $set: { coverImage: newCoverUrl.url }
+
+        },
+        {
+            new: true
+        }).select("-password -refreshToken")
+
+    return res.status(200).json(new apiResponse(200, updatedCoverUser, "Cover Image updated sucessfully"))
+})
+export { registerUser, loginUser, logoutUser, newAccessToken, changeOldPassword, fetchCurrentUser, updateAccountDetails, updateAvatar, updateCoverImage }
