@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary"
+import { apiError } from "../utils/apiError.js"
 import fs from "fs"
 
 
@@ -30,6 +31,29 @@ const uploadOnCloudinary = async (localFilePath) => {
 
 }
 
+const deleteOnCloudinary = async (deleteFileUrl) => {
+    try {
+        if (!deleteFileUrl) {
+            return null;
+        }
+    // http://res.cloudinary.com/dtd8amomx/image/upload/v1729346079/egi0fnfz2cws0raekvio.png
 
-export { uploadOnCloudinary }
+    //["http:", "", "res.cloudinary.com", "dtd8amomx", "image", "upload", "v1729346079", "egi0fnfz2cws0raekvio.png"] 
+
+    // [egi0fnfz2cws0raekvio,png]
+        const publicId = deleteFileUrl.split('/').pop().split('.')[0];
+        
+        const response = await cloudinary.uploader.destroy(publicId, { resource_type: "image" })
+      
+
+        return response;
+
+
+    } catch (error) {
+        throw new apiError(400, error?.message || "Something went wrong while deleting file")
+    }
+}
+
+
+export { uploadOnCloudinary, deleteOnCloudinary }
 

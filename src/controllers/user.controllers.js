@@ -1,9 +1,10 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js"
 import { User } from "../models/user.models.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { uploadOnCloudinary, deleteOnCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken"
+import mongoose from "mongoose";
 const generateAccessTokenAndRefreshToken = async (userId) => {
     try {
         const user = await User.findById(userId)
@@ -24,6 +25,7 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
 
     }
 }
+
 
 
 // REGISTER THE USER
@@ -208,7 +210,7 @@ const logoutUser = asyncHandler(async (req, res) => {
         {
 
             $set: { refreshToken: null }
-            // we are using the set operator to the set the refresh token as undefined
+            // we are using the set operator to the set the refresh token as NULL
 
         },
         {
@@ -338,8 +340,7 @@ const fetchCurrentUser = asyncHandler(async (req, res) => {
     }
 
     const currentUser = await User.findById(userId);
-
-    return res.status(200).json(200, currentUser, "Current user fetched sucessfully")
+    return res.status(200).json(new apiResponse(200, currentUser, "User fetched Sucessfully"))
 
 
 })
@@ -368,7 +369,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     const updatedUser = await User.findOneAndUpdate(
         user._id,
         {
-            $set: { username: username, email: email }
+            $set: { fullname: fullname, email: email }
         },
         {
             new: true
@@ -383,14 +384,18 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 })
 
 const updateAvatar = asyncHandler(async (req, res) => {
-    const user = req.user?._id;
+    const userId = req.user?._id;
+    const user = await User.findById(userId)
     if (!user) {
         throw new apiError(401, "User authentication failed or user not registered")
 
     }
+
+    const oldAvatarUrl = user.avatar;
     // const avatar = await uploadOnCloudinary(avatarLocalPath);
     // const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-    const avatarLocalPath = req.file?.path
+    const avatarLocalPath = req.files?.avatar[0]?.path
+    console.log(avatarLocalPath)
 
     if (!avatarLocalPath) {
         throw new apiError(400, "Avatar file is missing");
@@ -402,10 +407,10 @@ const updateAvatar = asyncHandler(async (req, res) => {
         throw new apiError(400, "Error while uploading on cloudinary");
     }
 
-    await cloudinary.v2.uploader.destroy(user.avatar, { resource_type: 'image' })
+    // await cloudinary.v2.uploader.destroy(user.avatar, { resource_type: 'auto' })
 
     // findoneandupdate, findByidandupdate
-    const updatedAvatarUser = await user.findOneAndUpdate(
+    const updatedAvatarUser = await User.findByIdAndUpdate(
         user._id,
         {
             $set: { avatar: newAvatarUrl.url }
@@ -415,20 +420,27 @@ const updateAvatar = asyncHandler(async (req, res) => {
             new: true
         }).select("-password -refreshToken")
 
+    // deleting the old file from cloudinary
+    const responseDelete = await deleteOnCloudinary(oldAvatarUrl);
+    console.log(responseDelete);
+
     return res.status(200).json(new apiResponse(200, updatedAvatarUser, "Avatar updated sucessfully"))
 })
 
 // exra thing that i did was to delete the old file from cloudinary for avatar and coverimage
 
 const updateCoverImage = asyncHandler(async (req, res) => {
-    const user = req.user?._id;
+    const userId = req.user?._id;
+    const user = await User.findById(userId)
     if (!user) {
         throw new apiError(401, "User authentication failed or user not registered")
 
     }
     // const avatar = await uploadOnCloudinary(avatarLocalPath);
     // const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-    const coverImageLocalPath = req.file?.path
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path
+    const oldCoverImagerUrl = user.coverImage;
+    const coverImageLocalPath = req.files?.coverImage[0]?.path
 
     if (!coverImageLocalPath) {
         throw new apiError(400, "Cover image file is missing");
@@ -440,10 +452,10 @@ const updateCoverImage = asyncHandler(async (req, res) => {
         throw new apiError(400, "Error while uploading on cloudinary");
     }
 
-    await cloudinary.v2.uploader.destroy(user.coverImage, { resource_type: 'image' })
+    // await cloudinary.v2.uploader.destroy(user.coverImage, { resource_type: 'image' })
 
     // findoneandupdate, findByidandupdate
-    const updatedCoverUser = await user.findOneAndUpdate(
+    const updatedCoverUser = await User.findByIdAndUpdate(
         user._id,
         {
             $set: { coverImage: newCoverUrl.url }
@@ -452,7 +464,152 @@ const updateCoverImage = asyncHandler(async (req, res) => {
         {
             new: true
         }).select("-password -refreshToken")
+    // deleting old cover image from cloudinary
+    const deleteCoverImageResponse = await deleteOnCloudinary(oldCoverImagerUrl);
 
     return res.status(200).json(new apiResponse(200, updatedCoverUser, "Cover Image updated sucessfully"))
 })
-export { registerUser, loginUser, logoutUser, newAccessToken, changeOldPassword, fetchCurrentUser, updateAccountDetails, updateAvatar, updateCoverImage }
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params
+
+    if (!username?.trim()) {
+        throw new apiError(400, "Username is missing")
+    }
+    // now we use aggregation piplelines to find the subcribers
+
+    const channel = await User.aggregate([
+        // Stage 1: we are using the username to find the document in user model
+        // we will be using match for it
+        {
+            $match: {
+                username: username?.toLowerCase()
+            }
+        },
+        // by this we are searching the User db to find the username using the match
+        // to find the Subscribers of a particular channel
+        {
+            $lookup: {
+                // as we know mongo converts the model name to lowercase and in plural form, so we put subscriptions here
+                from: "subscriptions",
+                localfield: "_id",
+                foreignField: "channel",
+                as: "subscribers",
+            }
+        },
+        // to find how many channel we have subscribed to, we use another lookup
+        {
+            $lookup: {
+                // as we know mongo converts the model name to lowercase and in plural form, so we put subscriptions here
+                from: "subscriptions",
+                localfield: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo",
+            }
+        },
+        {
+            // we will be adding these 2 extra field named subscribersCount and channelSubscribedToCount in the user Model
+            $addFields: {
+                subscribersCount: {
+                    $size: "$subscribers"
+                    // now as the subscribers from the first lookup became a field so we use dollar
+                },
+                channelSubscribedToCount: {
+                    $size: "subscribedTo"
+                },
+                // now we are creating one ore field so that if a person is subscribed to a channel then it must show subscribed
+                isSubscribed: {
+                    $cond: {
+                        // from the subcribers objects(1st lookup) we will see if our id is present or not
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            // we will not give everything to the frontend, but only some selected fields, so for that we are using the Project
+
+            $project: {
+                // whatever field we need to send to the frontend we will make its flag as 1,
+                fullname: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
+
+
+            }
+        }
+
+
+    ])
+
+    if (!channel?.length) {
+        throw new apiError(404, "Channel does not exist")
+    }
+
+    return res.status(200).json(new apiResponse(200, channel[0], "User channel fetched sucessfully"))
+})
+
+const getwatchHistory = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+    if (!userId) {
+        throw new apiError(400, "Login first")
+    }
+
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id)
+
+            },
+
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                $project: {
+                                    fullname: 1,
+                                    username: 1,
+                                    avatar: 1
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields: {
+                            owner: {
+                                $first: "owner"
+                            }
+                        }
+                    }
+                ]
+
+
+            }
+        },
+
+
+    ])
+
+
+    return res.status(200).json(new apiResponse(200, user[0].watchHistory, "Watch History fetched sucessfully"))
+})
+
+export { registerUser, loginUser, logoutUser, newAccessToken, changeOldPassword, fetchCurrentUser, updateAccountDetails, updateAvatar, updateCoverImage, getUserChannelProfile, getwatchHistory }
